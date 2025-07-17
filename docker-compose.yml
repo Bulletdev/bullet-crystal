@@ -1,0 +1,104 @@
+version: '3.4'
+
+services:
+  app1: &app
+    image: michaelbullet/rinha-crystal:latest
+    hostname: app1
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/rinha_payments
+      REDIS_URL: redis://redis:6379
+      PROCESSOR_URL: "http://payment-processor-default:8080"
+      FALLBACK_URL: "http://payment-processor-fallback:8080"
+      DISABLE_LOG: "true"
+      PORT: "4444"
+    networks:
+      - backend
+      - payment-processor
+    expose:
+      - "4444"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ipc: host
+    ulimits:
+      nproc: 1000000
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: '30MB'
+
+  app2:
+    <<: *app
+    hostname: app2
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: rinha_payments
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: '100MB'
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --maxmemory 30mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: '40MB'
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app1
+      - app2
+    ports:
+      - "9999:9999"
+    ulimits:
+      nproc: 1000000
+      nofile:
+        soft: 1000000
+        hard: 1000000
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: '25MB'
+
+networks:
+  backend:
+    driver: bridge
+  payment-processor:
+    external: true 
