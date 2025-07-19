@@ -6,7 +6,14 @@ class Database
 
   def initialize
     database_url = ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rinha_payments")
-    @pool = DB.open(database_url, max_pool_size: 10)
+    unless database_url.includes?("max_pool_size")
+      if database_url.includes?("?")
+        database_url += "&max_pool_size=10"
+      else
+        database_url += "?max_pool_size=10"
+      end
+    end
+    @pool = DB.open(database_url)
   end
 
   def with_connection(&block : DB::Connection ->)
