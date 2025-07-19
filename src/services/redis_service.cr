@@ -28,4 +28,12 @@ class RedisService
     result = @redis.set(key, "1", ex: 5, nx: true)
     result == "OK"
   end
+
+  def get(key : String)
+    @redis.get(key)
+  end
+
+  def setex(key : String, seconds : Int32, value : String)
+    @redis.setex(key, seconds, value)
+  end
 end 
