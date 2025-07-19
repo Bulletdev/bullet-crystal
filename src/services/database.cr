@@ -6,7 +6,7 @@ class Database
 
   def initialize
     database_url = ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rinha_payments")
-    @pool = DB.open(database_url)
+    @pool = DB.open(database_url, max_pool_size: 10)
   end
 
   def with_connection(&block : DB::Connection ->)
