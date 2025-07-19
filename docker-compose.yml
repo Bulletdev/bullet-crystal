@@ -83,7 +83,7 @@ services:
       - app1
       - app2
     ports:
-      - "9999:9999"
+      - "9999:80"
     ulimits:
       nproc: 1000000
       nofile:
