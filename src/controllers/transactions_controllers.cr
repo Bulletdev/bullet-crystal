@@ -56,10 +56,25 @@ class PaymentsController
       from = from_param ? Time.parse_rfc3339(from_param) : nil
       to = to_param ? Time.parse_rfc3339(to_param) : nil
 
+      cache_key = "summary:#{from_param}:#{to_param}"
+      cached = @redis.get(cache_key) rescue nil
+      if cached
+        context.response.status = HTTP::Status::OK
+        context.response.print cached
+        return
+      end
+
       summary = @db.get_summary(from, to)
+      result = summary.to_json
+
+      begin
+        @redis.setex(cache_key, 2, result)
+      rescue
+        # ignora erro de cache
+      end
 
       context.response.status = HTTP::Status::OK
-      context.response.print summary.to_json
+      context.response.print result
     rescue
       context.response.status = HTTP::Status::BAD_REQUEST
       context.response.print ""
