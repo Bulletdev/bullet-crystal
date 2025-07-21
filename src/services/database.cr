@@ -8,9 +8,9 @@ class Database
     database_url = ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rinha_payments")
     unless database_url.includes?("max_pool_size")
       if database_url.includes?("?")
-        database_url += "&max_pool_size=10"
+        database_url += "&max_pool_size=20"
       else
-        database_url += "?max_pool_size=10"
+        database_url += "?max_pool_size=20"
       end
     end
     @pool = DB.open(database_url)
@@ -36,13 +36,13 @@ class Database
       params = [] of DB::Any
 
       if from && to
-        query += " WHERE processed_at >= $1 AND processed_at <= $2"
+        query += " WHERE requested_at >= $1 AND requested_at <= $2"
         params = [from, to]
       elsif from
-        query += " WHERE processed_at >= $1"
+        query += " WHERE requested_at >= $1"
         params = [from]
       elsif to
-        query += " WHERE processed_at <= $1"
+        query += " WHERE requested_at <= $1"
         params = [to]
       end
 
@@ -70,4 +70,5 @@ class Database
       conn.exec("DELETE FROM payments")
     end
   end
-end 
+
+end

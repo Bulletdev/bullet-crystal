@@ -37,5 +37,5 @@ server = HTTP::Server.new do |context|
 end
 
 puts "Server starting on port #{port}"
-server.bind_tcp port
+server.bind_tcp "0.0.0.0", port
 server.listen

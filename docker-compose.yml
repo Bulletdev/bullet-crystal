@@ -1,6 +1,6 @@
 services:
   app1: &app
-    image: michaelbullet/rinha-crystal:latest
+    build: .
     hostname: app1
     restart: unless-stopped
     environment:
@@ -35,6 +35,7 @@ services:
   app2:
     <<: *app
     hostname: app2
+
 
   db:
     image: postgres:15-alpine

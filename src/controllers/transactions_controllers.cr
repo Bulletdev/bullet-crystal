@@ -65,7 +65,16 @@ class PaymentsController
       end
 
       summary = @db.get_summary(from, to)
+      summary ||= {
+        "default" => {"totalRequests" => 0, "totalAmount" => 0.0},
+        "fallback" => {"totalRequests" => 0, "totalAmount" => 0.0}
+      }
+      summary["default"] ||= {"totalRequests" => 0, "totalAmount" => 0.0}
+      summary["fallback"] ||= {"totalRequests" => 0, "totalAmount" => 0.0}
+
+       "SUMMARY: #{summary.inspect}"
       result = summary.to_json
+       "RESULT JSON: #{result}"
 
       begin
         @redis.setex(cache_key, 2, result)
@@ -111,4 +120,4 @@ class PaymentsController
     context.response.status = HTTP::Status::BAD_REQUEST
     context.response.print ""
   end
-end 
+end
