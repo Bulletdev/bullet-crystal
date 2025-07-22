@@ -6,13 +6,16 @@ class Database
 
   def initialize
     database_url = ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rinha_payments")
+    max_pool_size = ENV["MAX_POOL_SIZE"]?.try(&.to_i) || 20
+    
     unless database_url.includes?("max_pool_size")
       if database_url.includes?("?")
-        database_url += "&max_pool_size=20"
+        database_url += "&max_pool_size=#{max_pool_size}"
       else
-        database_url += "?max_pool_size=20"
+        database_url += "?max_pool_size=#{max_pool_size}"
       end
     end
+    
     @pool = DB.open(database_url)
   end
 
@@ -70,5 +73,4 @@ class Database
       conn.exec("DELETE FROM payments")
     end
   end
-
 end

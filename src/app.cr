@@ -11,6 +11,7 @@ class App
     @redis = RedisService.new
     @payment_processor = PaymentProcessor.new
     @controller = PaymentsController.new(@db, @redis, @payment_processor)
+    @disable_log = ENV["DISABLE_LOG"]? == "true"
   end
 
   def call(context)
@@ -25,6 +26,10 @@ class App
       context.response.status = HTTP::Status::NOT_FOUND
       context.response.print ""
     end
+  rescue ex
+    puts "Unhandled error: #{ex.message}" unless @disable_log
+    context.response.status = HTTP::Status::INTERNAL_SERVER_ERROR
+    context.response.print ""
   end
 end
 
@@ -36,6 +41,6 @@ server = HTTP::Server.new do |context|
   app.call(context)
 end
 
-puts "Server starting on port #{port}"
+puts "Server starting on port #{port}" unless ENV["DISABLE_LOG"]? == "true"
 server.bind_tcp "0.0.0.0", port
 server.listen

@@ -5,6 +5,8 @@ require "../models/transaction"
 
 class PaymentsController
   def initialize(@db : Database, @redis : RedisService, @payment_processor : PaymentProcessor)
+    @disable_log = ENV["DISABLE_LOG"]? == "true"
+    @cache_ttl = ENV["CACHE_TTL"]?.try(&.to_i) || 2
   end
 
   def process_payment(context)
@@ -42,7 +44,8 @@ class PaymentsController
       end
     rescue JSON::ParseException
       bad_request(context)
-    rescue
+    rescue ex
+      puts "Error processing payment: #{ex.message}" unless @disable_log
       context.response.status = HTTP::Status::INTERNAL_SERVER_ERROR
       context.response.print ""
     end
@@ -72,19 +75,20 @@ class PaymentsController
       summary["default"] ||= {"totalRequests" => 0, "totalAmount" => 0.0}
       summary["fallback"] ||= {"totalRequests" => 0, "totalAmount" => 0.0}
 
-       "SUMMARY: #{summary.inspect}"
+      puts "SUMMARY: #{summary.inspect}" unless @disable_log
       result = summary.to_json
-       "RESULT JSON: #{result}"
+      puts "RESULT JSON: #{result}" unless @disable_log
 
       begin
-        @redis.setex(cache_key, 2, result)
+        @redis.setex(cache_key, @cache_ttl, result)
       rescue
         # ignora erro de cache
       end
 
       context.response.status = HTTP::Status::OK
       context.response.print result
-    rescue
+    rescue ex
+      puts "Error getting summary: #{ex.message}" unless @disable_log
       context.response.status = HTTP::Status::BAD_REQUEST
       context.response.print ""
     end
@@ -95,7 +99,8 @@ class PaymentsController
       @db.purge_payments
       context.response.status = HTTP::Status::OK
       context.response.print "{\"result\": \"ok\"}"
-    rescue
+    rescue ex
+      puts "Error purging payments: #{ex.message}" unless @disable_log
       context.response.status = HTTP::Status::INTERNAL_SERVER_ERROR
       context.response.print "{\"error\": \"internal error\"}"
     end

@@ -8,6 +8,13 @@ class PaymentProcessor
   DEFAULT_FEE = 0.05
   FALLBACK_FEE = 0.08
 
+  def initialize
+    @timeout_default = ENV["TIMEOUT_DEFAULT"]?.try(&.to_i) || 180
+    @timeout_fallback = ENV["TIMEOUT_FALLBACK"]?.try(&.to_i) || 95
+    @retry_api_default = ENV["RETRY_API_DEFAULT"]?.try(&.to_i) || 3
+    @http_client_worker = ENV["HTTP_CLIENT_WORKER"]?.try(&.to_i) || 10
+  end
+
   def process_payment(correlation_id : String, amount : Float64, requested_at : Time)
     payload = {
       "correlationId" => correlation_id,
@@ -29,10 +36,10 @@ class PaymentProcessor
 
   def check_health(processor : String)
     url = processor == "default" ? DEFAULT_URL : FALLBACK_URL
+    timeout = processor == "default" ? @timeout_default : @timeout_fallback
 
     begin
-      response = HTTP::Client.get("#{url}/payments/service-health",
-        headers: HTTP::Headers{"Content-Type" => "application/json"})
+      response = make_request("GET", "#{url}/payments/service-health", nil, timeout)
 
       if response.status_code == 200
         data = JSON.parse(response.body)
@@ -49,26 +56,53 @@ class PaymentProcessor
   end
 
   private def try_default_processor(payload)
-    try_processor(DEFAULT_URL, payload, "default", DEFAULT_FEE)
+    try_processor(DEFAULT_URL, payload, "default", DEFAULT_FEE, @timeout_default)
   end
 
   private def try_fallback_processor(payload)
-    try_processor(FALLBACK_URL, payload, "fallback", FALLBACK_FEE)
+    try_processor(FALLBACK_URL, payload, "fallback", FALLBACK_FEE, @timeout_fallback)
   end
 
-  private def try_processor(url : String, payload, processor_type : String, fee_rate : Float64)
-    begin
-      response = HTTP::Client.post("#{url}/payments",
-        headers: HTTP::Headers{"Content-Type" => "application/json"},
-        body: payload.to_json)
+  private def try_processor(url : String, payload, processor_type : String, fee_rate : Float64, timeout : Int32)
+    retries = processor_type == "default" ? @retry_api_default : 1
+    
+    retries.times do |attempt|
+      begin
+        response = make_request("POST", "#{url}/payments", payload.to_json, timeout)
 
-      if response.status_code >= 200 && response.status_code < 300
-        {true, processor_type, fee_rate}
-      else
-        {false, "", 0.0}
+        if response.status_code >= 200 && response.status_code < 300
+          return {true, processor_type, fee_rate}
+        end
+      rescue
+        # Se não é a última tentativa, continua o loop
+        next if attempt < retries - 1
       end
-    rescue
-      {false, "", 0.0}
+    end
+
+    {false, "", 0.0}
+  end
+
+  private def make_request(method : String, url : String, body : String?, timeout : Int32)
+    uri = URI.parse(url)
+    client = HTTP::Client.new(uri.host.not_nil!, uri.port || 8080)
+    client.read_timeout = timeout.seconds
+    client.connect_timeout = (timeout / 2).seconds
+
+    begin
+      case method
+      when "GET"
+        response = client.get(uri.path || "/", headers: HTTP::Headers{"Content-Type" => "application/json"})
+      when "POST"
+        response = client.post(uri.path || "/", 
+          headers: HTTP::Headers{"Content-Type" => "application/json"},
+          body: body)
+      else
+        raise "Unsupported method: #{method}"
+      end
+      
+      response
+    ensure
+      client.close
     end
   end
-end 
+end
