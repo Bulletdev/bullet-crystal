@@ -1,5 +1,6 @@
 require "http/client"
 require "json"
+require "../models/payment_request"  
 
 class PaymentProcessor
   DEFAULT_URL = "http://payment-processor-default:8080"
@@ -7,6 +8,11 @@ class PaymentProcessor
 
   DEFAULT_FEE = 0.05
   FALLBACK_FEE = 0.08
+
+  @timeout_default : Int32
+  @timeout_fallback : Int32
+  @retry_api_default : Int32
+  @http_client_worker : Int32
 
   def initialize
     @timeout_default = ENV["TIMEOUT_DEFAULT"]?.try(&.to_i) || 180
@@ -16,11 +22,9 @@ class PaymentProcessor
   end
 
   def process_payment(correlation_id : String, amount : Float64, requested_at : Time)
-    payload = {
-      "correlationId" => correlation_id,
-      "amount" => amount,
-      "requestedAt" => requested_at.to_rfc3339
-    }
+    # Usa a struct para criar o payload
+    request = PaymentProcessorRequest.new(correlation_id, amount, requested_at)
+    payload = request.to_json
 
     success, processor_type, fee_rate = try_default_processor(payload)
     unless success
@@ -55,26 +59,25 @@ class PaymentProcessor
     end
   end
 
-  private def try_default_processor(payload)
+  private def try_default_processor(payload : String)
     try_processor(DEFAULT_URL, payload, "default", DEFAULT_FEE, @timeout_default)
   end
 
-  private def try_fallback_processor(payload)
+  private def try_fallback_processor(payload : String)
     try_processor(FALLBACK_URL, payload, "fallback", FALLBACK_FEE, @timeout_fallback)
   end
 
-  private def try_processor(url : String, payload, processor_type : String, fee_rate : Float64, timeout : Int32)
+  private def try_processor(url : String, payload : String, processor_type : String, fee_rate : Float64, timeout : Int32)
     retries = processor_type == "default" ? @retry_api_default : 1
     
     retries.times do |attempt|
       begin
-        response = make_request("POST", "#{url}/payments", payload.to_json, timeout)
+        response = make_request("POST", "#{url}/payments", payload, timeout)
 
         if response.status_code >= 200 && response.status_code < 300
           return {true, processor_type, fee_rate}
         end
       rescue
-        # Se não é a última tentativa, continua o loop
         next if attempt < retries - 1
       end
     end

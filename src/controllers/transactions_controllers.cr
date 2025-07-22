@@ -2,8 +2,12 @@ require "json"
 require "uuid"
 require "../models/client"
 require "../models/transaction"
+require "../models/payment_request"  
 
 class PaymentsController
+  @disable_log : Bool
+  @cache_ttl : Int32
+
   def initialize(@db : Database, @redis : RedisService, @payment_processor : PaymentProcessor)
     @disable_log = ENV["DISABLE_LOG"]? == "true"
     @cache_ttl = ENV["CACHE_TTL"]?.try(&.to_i) || 2
@@ -82,7 +86,6 @@ class PaymentsController
       begin
         @redis.setex(cache_key, @cache_ttl, result)
       rescue
-        # ignora erro de cache
       end
 
       context.response.status = HTTP::Status::OK

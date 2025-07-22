@@ -1,6 +1,6 @@
 services:
   app1:
-    image: bullet-crystal:latest
+    build: .
     hostname: app1
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/rinha_payments
@@ -33,7 +33,7 @@ services:
           memory: '60MB'
 
   app2:
-    image: bullet-crystal:latest
+    build: .
     hostname: app2
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/rinha_payments
@@ -75,6 +75,9 @@ services:
       - app2
     ports:
       - "9999:80"
+
+
+
     networks:
       - backend
     deploy:
