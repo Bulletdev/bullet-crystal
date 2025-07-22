@@ -28,12 +28,8 @@ class App
       @controller.purge_payments(context)
     else
       context.response.status = HTTP::Status::NOT_FOUND
-      context.response.print ""
+      context.response.print "Not found"
     end
-  rescue ex
-    puts "Unhandled error: #{ex.message}" unless @disable_log
-    context.response.status = HTTP::Status::INTERNAL_SERVER_ERROR
-    context.response.print ""
   end
 end
 

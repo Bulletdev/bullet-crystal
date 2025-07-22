@@ -6,13 +6,13 @@ class Database
 
   def initialize
     database_url = ENV.fetch("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/rinha_payments")
-    max_pool_size = ENV["MAX_POOL_SIZE"]?.try(&.to_i) || 20
+    max_pool_size = ENV["MAX_POOL_SIZE"]?.try(&.to_i) || 30
     
     unless database_url.includes?("max_pool_size")
       if database_url.includes?("?")
-        database_url += "&max_pool_size=#{max_pool_size}"
+        database_url += "&max_pool_size=#{max_pool_size}&initial_pool_size=5&checkout_timeout=5.0"
       else
-        database_url += "?max_pool_size=#{max_pool_size}"
+        database_url += "?max_pool_size=#{max_pool_size}&initial_pool_size=5&checkout_timeout=5.0"
       end
     end
     
@@ -31,11 +31,21 @@ class Database
         correlation_id, amount, requested_at, processor_type, fee_rate, fee_amount
       )
     end
+  rescue ex
+    puts "Database save error: #{ex.message}"
+    raise ex
   end
 
   def get_summary(from : Time?, to : Time?)
     with_connection do |conn|
-      query = "SELECT processor_type, COUNT(*) as total_requests, SUM(amount) as total_amount FROM payments"
+      query = <<-SQL
+        SELECT 
+          processor_type, 
+          COUNT(*)::int as total_requests, 
+          COALESCE(SUM(amount), 0)::numeric as total_amount 
+        FROM payments
+      SQL
+      
       params = [] of DB::Any
 
       if from && to
@@ -58,7 +68,7 @@ class Database
       conn.query(query, args: params) do |rs|
         rs.each do
           processor_type = rs.read(String)
-          total_requests = rs.read(Int64).to_i32
+          total_requests = rs.read(Int32)
           total_amount = rs.read(PG::Numeric).to_f64
           result[processor_type] = {"totalRequests" => total_requests, "totalAmount" => total_amount}
         end
@@ -66,11 +76,17 @@ class Database
 
       result
     end
+  rescue ex
+    puts "Database summary error: #{ex.message}"
+    {
+      "default" => {"totalRequests" => 0, "totalAmount" => 0.0},
+      "fallback" => {"totalRequests" => 0, "totalAmount" => 0.0}
+    }
   end
 
   def purge_payments
     with_connection do |conn|
-      conn.exec("DELETE FROM payments")
+      conn.exec("TRUNCATE TABLE payments") 
     end
   end
 end

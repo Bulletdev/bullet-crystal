@@ -2,7 +2,7 @@ require "json"
 require "uuid"
 require "../models/client"
 require "../models/transaction"
-require "../models/payment_request"  
+require "../models/payment_request"
 
 class PaymentsController
   @disable_log : Bool
@@ -25,6 +25,8 @@ class PaymentsController
       return bad_request(context) unless valid_uuid?(payment_request.correlationId)
       return bad_request(context) unless payment_request.amount > 0
 
+      puts "Processing payment: #{payment_request.correlationId}, amount: #{payment_request.amount}" unless @disable_log
+
       result = @payment_processor.process_payment(
         payment_request.correlationId,
         payment_request.amount,
@@ -40,13 +42,16 @@ class PaymentsController
           result[:fee_rate].as(Float64)
         )
 
+        puts "Payment processed successfully: #{payment_request.correlationId}" unless @disable_log
         context.response.status = HTTP::Status::OK
         context.response.print ""
       else
+        puts "Payment processing failed: #{payment_request.correlationId}" unless @disable_log
         context.response.status = HTTP::Status::INTERNAL_SERVER_ERROR
         context.response.print ""
       end
     rescue JSON::ParseException
+      puts "Invalid JSON in payment request" unless @disable_log
       bad_request(context)
     rescue ex
       puts "Error processing payment: #{ex.message}" unless @disable_log
@@ -71,8 +76,7 @@ class PaymentsController
         return
       end
 
-      summary = @db.get_summary(from, to)
-      summary ||= {
+      summary = @db.get_summary(from, to) || {
         "default" => {"totalRequests" => 0, "totalAmount" => 0.0},
         "fallback" => {"totalRequests" => 0, "totalAmount" => 0.0}
       }
@@ -83,9 +87,11 @@ class PaymentsController
       result = summary.to_json
       puts "RESULT JSON: #{result}" unless @disable_log
 
-      begin
-        @redis.setex(cache_key, @cache_ttl, result)
-      rescue
+      spawn do
+        begin
+          @redis.setex(cache_key, @cache_ttl, result)
+        rescue
+        end
       end
 
       context.response.status = HTTP::Status::OK

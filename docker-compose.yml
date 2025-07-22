@@ -12,8 +12,8 @@ services:
       TIMEOUT_DEFAULT: "180"
       TIMEOUT_FALLBACK: "95"
       RETRY_API_DEFAULT: "3"
-      HTTP_CLIENT_WORKER: "10"
-      MAX_POOL_SIZE: "20"
+      HTTP_CLIENT_WORKER: "5"
+      MAX_POOL_SIZE: "10"
       CACHE_TTL: "2"
       BACK_END_URL: "http://app2:4444"
     networks:
@@ -29,8 +29,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: '60MB'
+          cpus: '0.2'
+          memory: '50MB'
 
   app2:
     build: .
@@ -45,8 +45,8 @@ services:
       TIMEOUT_DEFAULT: "180"
       TIMEOUT_FALLBACK: "95"
       RETRY_API_DEFAULT: "3"
-      HTTP_CLIENT_WORKER: "10"
-      MAX_POOL_SIZE: "20"
+      HTTP_CLIENT_WORKER: "5"
+      MAX_POOL_SIZE: "10"
       CACHE_TTL: "2"
       BACK_END_URL: "http://app1:4444"
     networks:
@@ -62,8 +62,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: '60MB'
+          cpus: '0.2'
+          memory: '50MB'
 
   nginx:
     image: nginx:alpine
@@ -75,9 +75,6 @@ services:
       - app2
     ports:
       - "9999:80"
-
-
-
     networks:
       - backend
     deploy:
@@ -96,12 +93,12 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     command: >
       postgres 
-      -c max_connections=100
-      -c shared_buffers=32MB
-      -c effective_cache_size=80MB
-      -c maintenance_work_mem=8MB
+      -c max_connections=50
+      -c shared_buffers=24MB
+      -c effective_cache_size=60MB
+      -c maintenance_work_mem=4MB
       -c checkpoint_completion_target=0.9
-      -c wal_buffers=2MB
+      -c wal_buffers=1MB
       -c default_statistics_target=100
       -c random_page_cost=1.1
       -c effective_io_concurrency=200
