@@ -41,8 +41,8 @@ class Database
       query = <<-SQL
         SELECT 
           processor_type, 
-          COUNT(*)::int as total_requests, 
-          COALESCE(SUM(amount), 0)::numeric as total_amount 
+          COUNT(*)::int as "totalRequests", 
+          COALESCE(SUM(amount), 0)::numeric as "totalAmount"
         FROM payments
       SQL
       
@@ -70,7 +70,10 @@ class Database
           processor_type = rs.read(String)
           total_requests = rs.read(Int32)
           total_amount = rs.read(PG::Numeric).to_f64
-          result[processor_type] = {"totalRequests" => total_requests, "totalAmount" => total_amount}
+          result[processor_type] = {
+            "totalRequests" => total_requests,
+            "totalAmount" => total_amount
+          }
         end
       end
 
